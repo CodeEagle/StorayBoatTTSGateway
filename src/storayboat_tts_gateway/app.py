@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 
-from .api_models import ProviderInfo, ProviderName, SpeechRequest, SynthesisResult, VoiceInfo
+from .api_models import APICatalog, APIEndpointInfo, ProviderInfo, ProviderName, SpeechRequest, SynthesisResult, VoiceInfo
 from .providers.edge_provider import EdgeProvider
 from .providers.kokoro_provider import KokoroProvider
 
@@ -22,6 +22,36 @@ providers = {
 
 def get_provider(name: ProviderName):
     return providers[name]
+
+
+def build_api_catalog() -> APICatalog:
+    provider_infos = [
+        ProviderInfo(
+            id=ProviderName.EDGE,
+            name="Edge TTS",
+            supports_real_word_timing=True,
+            supports_estimated_word_timing=False,
+            supported_formats=list(get_provider(ProviderName.EDGE).supported_formats),
+        ),
+        ProviderInfo(
+            id=ProviderName.KOKORO,
+            name="Kokoro",
+            supports_real_word_timing=True,
+            supports_estimated_word_timing=False,
+            supported_formats=list(get_provider(ProviderName.KOKORO).supported_formats),
+        ),
+    ]
+    endpoints = [
+        APIEndpointInfo(method="GET", path="/healthz", summary="Health check", response_type="application/json"),
+        APIEndpointInfo(method="GET", path="/v1/providers", summary="List providers and capabilities", response_type="application/json"),
+        APIEndpointInfo(method="GET", path="/v1/voices?provider={provider}", summary="List voices for a provider", response_type="application/json", provider_optional=False),
+        APIEndpointInfo(method="GET", path="/v1/catalog", summary="List all API endpoints and provider capabilities", response_type="application/json"),
+        APIEndpointInfo(method="POST", path="/v1/audio/speech_with_timestamps", summary="Return JSON with audio_base64 and word timings", response_type="application/json", provider_optional=False),
+        APIEndpointInfo(method="POST", path="/v1/{provider}/audio/speech_with_timestamps", summary="Provider-scoped JSON synthesis endpoint", response_type="application/json", provider_optional=True),
+        APIEndpointInfo(method="POST", path="/v1/audio/speech", summary="Return compatibility JSON with audio_base64 and format", response_type="application/json", provider_optional=False),
+        APIEndpointInfo(method="POST", path="/v1/audio/speech_bundle", summary="Return multipart metadata.json plus binary audio", response_type="multipart/mixed", provider_optional=False),
+    ]
+    return APICatalog(service=app.title, version=app.version, providers=provider_infos, endpoints=endpoints)
 
 
 def build_multipart_bundle(result: SynthesisResult) -> tuple[bytes, str]:
@@ -62,22 +92,12 @@ async def healthz() -> dict[str, str]:
 
 @app.get("/v1/providers", response_model=list[ProviderInfo])
 async def list_providers() -> list[ProviderInfo]:
-    return [
-        ProviderInfo(
-            id=ProviderName.EDGE,
-            name="Edge TTS",
-            supports_real_word_timing=True,
-            supports_estimated_word_timing=False,
-            supported_formats=list(get_provider(ProviderName.EDGE).supported_formats),
-        ),
-        ProviderInfo(
-            id=ProviderName.KOKORO,
-            name="Kokoro",
-            supports_real_word_timing=True,
-            supports_estimated_word_timing=False,
-            supported_formats=list(get_provider(ProviderName.KOKORO).supported_formats),
-        ),
-    ]
+    return build_api_catalog().providers
+
+
+@app.get("/v1/catalog", response_model=APICatalog)
+async def api_catalog() -> APICatalog:
+    return build_api_catalog()
 
 
 @app.get("/v1/voices", response_model=list[VoiceInfo])

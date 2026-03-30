@@ -61,6 +61,23 @@ curl 'http://127.0.0.1:5051/v1/voices?provider=edge'
 curl 'http://127.0.0.1:5051/v1/voices?provider=kokoro'
 ```
 
+`Edge` 的 voice 列表会按 app 里同样的目录解析方式输出：
+
+- 使用同源的 Edge voice catalog 文本
+- 清洗 `Neural / MultilingualNeural` 后缀
+- 附带 `locale / language_name / country / alias_of`
+
+### 2.5. 获取完整 API 目录
+
+```bash
+curl 'http://127.0.0.1:5051/v1/catalog'
+```
+
+这个接口会返回：
+
+- providers 能力列表
+- 所有 API 的 method / path / summary / response_type
+
 ### 3. 合成并返回音频 + 词级时间戳
 
 ```bash

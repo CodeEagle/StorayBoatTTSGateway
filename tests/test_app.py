@@ -2,7 +2,7 @@ import base64
 import json
 
 from storayboat_tts_gateway.api_models import AudioFormat, ProviderName, SynthesisResult, TimingSource
-from storayboat_tts_gateway.app import build_multipart_bundle
+from storayboat_tts_gateway.app import build_api_catalog, build_multipart_bundle
 
 
 def test_build_multipart_bundle_contains_metadata_and_binary_audio() -> None:
@@ -31,3 +31,10 @@ def test_build_multipart_bundle_contains_metadata_and_binary_audio() -> None:
     metadata = json.loads(text[metadata_start:metadata_end])
     assert metadata["format"] == "mp3"
     assert metadata["provider"] == "edge"
+
+
+def test_build_api_catalog_includes_bundle_and_catalog_endpoints() -> None:
+    catalog = build_api_catalog()
+    paths = {endpoint.path for endpoint in catalog.endpoints}
+    assert "/v1/catalog" in paths
+    assert "/v1/audio/speech_bundle" in paths

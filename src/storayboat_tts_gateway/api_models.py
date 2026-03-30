@@ -44,6 +44,9 @@ class VoiceInfo(BaseModel):
     provider: ProviderName
     locale: str | None = None
     gender: str | None = None
+    language_name: str | None = None
+    country: str | None = None
+    alias_of: str | None = None
     tags: list[str] = Field(default_factory=list)
 
 
@@ -64,6 +67,21 @@ class ProviderInfo(BaseModel):
     supports_real_word_timing: bool
     supports_estimated_word_timing: bool
     supported_formats: list[AudioFormat]
+
+
+class APIEndpointInfo(BaseModel):
+    method: str
+    path: str
+    summary: str
+    response_type: str
+    provider_optional: bool = False
+
+
+class APICatalog(BaseModel):
+    service: str
+    version: str
+    providers: list[ProviderInfo]
+    endpoints: list[APIEndpointInfo]
 
 
 ProviderRoute = Literal["edge", "kokoro"]

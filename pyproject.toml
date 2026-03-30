@@ -9,11 +9,13 @@ description = "Unified TTS gateway for Edge TTS and Kokoro with word-level timin
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "babel>=2.18.0",
   "edge-tts>=7.2.3",
   "fastapi>=0.116.0",
   "httpx>=0.28.1",
   "orjson>=3.10.18",
   "pydantic>=2.11.3",
+  "pycountry>=24.6.1",
   "python-multipart>=0.0.20",
   "uvicorn>=0.35.0",
 ]
