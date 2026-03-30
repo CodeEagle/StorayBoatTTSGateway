@@ -1,6 +1,6 @@
 # StorayBoat TTS Gateway
 
-一个独立的 FastAPI 网关，把 `Edge TTS` 和 `Kokoro` 统一成一套适合 `PaperBoat` / `Custom API` 接入的协议。
+一个独立的 FastAPI 网关，把 `Edge TTS` 和 `Kokoro` 统一成一套通用协议。
 
 ## 当前能力
 
@@ -8,39 +8,38 @@
   - 返回真实 `WordBoundary` 词级时间戳
   - `GET /v1/voices?provider=edge` 返回完整 Edge voice 列表
   - 额外包含 OpenAI 风格 voice alias: `alloy / echo / fable / nova / onyx / shimmer`
-- `Kokoro`
-  - 返回可直接用于高亮的 `words`
-  - 当前时间戳来源是估算值，`timing_source=estimated`
-  - 支持列出 Kokoro voices
+- `Kokoro-FastAPI`
+  - 通过 `GET /v1/audio/voices` 获取声音列表
+  - 通过 `POST /dev/captioned_speech` 获取音频和逐词时间戳
+  - 直接复用 `Kokoro-FastAPI` 的真实时间戳结果
 
 ## 安装
 
 ```bash
-cd /Users/lincoln/Develop/GitHub/PaperBoatTTSGateway
+cd /Users/lincoln/Develop/GitHub/StorayBoatTTSGateway
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 ```
 
-`Kokoro` 模型现在会在首次使用时自动下载，不需要手动把文件放到仓库根目录。
+如果你要用 `Kokoro`，先单独启动一个 `Kokoro-FastAPI` 服务。
 
-默认下载位置：
-
-- `~/.cache/paperboat-tts-gateway/kokoro/kokoro-v1.0.onnx`
-- `~/.cache/paperboat-tts-gateway/kokoro/voices-v1.0.bin`
-
-如果你想改位置，可以设置：
+最简单的方式是直接跑官方镜像：
 
 ```bash
-export PAPERBOAT_TTS_KOKORO_DIR=/custom/path/to/kokoro-assets
+docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest
 ```
 
-如果你要让 `Kokoro` 输出 `mp3`，本机还需要 `ffmpeg`；否则用 `wav` 就可以直接工作。
+然后把网关指向它：
+
+```bash
+export KOKORO_FASTAPI_BASE_URL=http://127.0.0.1:8880
+```
 
 ## 启动
 
 ```bash
-paperboat-tts-gateway
+storayboat-tts-gateway
 ```
 
 默认监听：
@@ -68,10 +67,10 @@ curl 'http://127.0.0.1:5051/v1/voices?provider=kokoro'
 curl -X POST http://127.0.0.1:5051/v1/audio/speech_with_timestamps \
   -H 'Content-Type: application/json' \
   -d '{
-    "provider": "edge",
-    "model": "tts-1",
-    "input": "Hello world.",
-    "voice": "alloy",
+    "provider": "kokoro",
+    "model": "kokoro",
+    "input": "Hello world!",
+    "voice": "af_bella",
     "response_format": "mp3",
     "speed": 1.0
   }'
@@ -85,29 +84,26 @@ curl -X POST http://127.0.0.1:5051/v1/audio/speech_with_timestamps \
   "audio_base64": "...",
   "words": [
     { "text": "Hello", "start_ms": 0, "end_ms": 350 },
-    { "text": "world", "start_ms": 351, "end_ms": 720 },
-    { "text": ".", "start_ms": 721, "end_ms": 760 }
+    { "text": "world", "start_ms": 360, "end_ms": 720 }
   ],
   "timing_source": "word_boundary",
-  "provider": "edge",
-  "voice": "en-US-AvaNeural",
-  "model": "tts-1",
+  "provider": "kokoro",
+  "voice": "af_bella",
+  "model": "kokoro",
   "estimated": false
 }
 ```
 
-## 给 PaperBoat 的接法
+## 配置项
 
-如果你走 `Custom API -> generic JSON`，这个服务已经兼容 `audio_base64 + words + format`：
-
-- endpoint: `http://<host>:5051/v1/audio/speech_with_timestamps`
-- body 里要带 `provider`
-- `Edge` 推荐 `response_format=mp3`
-- `Kokoro` 推荐 `response_format=wav`
+- `KOKORO_FASTAPI_BASE_URL`
+  默认 `http://127.0.0.1:8880`
+- `KOKORO_FASTAPI_TIMEOUT`
+  默认 `120`
 
 ## 说明
 
 - `Edge` 的词级时间戳是真实边界。
-- `Kokoro` 目前是按整段音频时长做 token 级估算，足够驱动阅读高亮，但不是强制对齐结果。
-- `Kokoro` 的模型文件会在第一次列出声音或第一次合成时自动下载。
-- 如果后面接入更强的对齐器，`Kokoro` 可以升级成真实词级时间戳，而不用改客户端协议。
+- `Kokoro` 的词级时间戳来自 `Kokoro-FastAPI` 的 `/dev/captioned_speech`。
+- 为了减少文本归一化导致的丢词，这个网关默认会带上 `normalization_options.normalize=false` 转发给 `Kokoro-FastAPI`。
+- 参考：[`Kokoro-FastAPI` README](https://github.com/remsky/Kokoro-FastAPI)

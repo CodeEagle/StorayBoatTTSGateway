@@ -7,7 +7,7 @@ from .api_models import ProviderInfo, ProviderName, SpeechRequest, SynthesisResu
 from .providers.edge_provider import EdgeProvider
 from .providers.kokoro_provider import KokoroProvider
 
-app = FastAPI(title="PaperBoat TTS Gateway", version="0.1.0")
+app = FastAPI(title="StorayBoat TTS Gateway", version="0.1.0")
 
 providers = {
     ProviderName.EDGE: EdgeProvider(),
@@ -37,8 +37,8 @@ async def list_providers() -> list[ProviderInfo]:
         ProviderInfo(
             id=ProviderName.KOKORO,
             name="Kokoro",
-            supports_real_word_timing=False,
-            supports_estimated_word_timing=True,
+            supports_real_word_timing=True,
+            supports_estimated_word_timing=False,
             supported_formats=list(get_provider(ProviderName.KOKORO).supported_formats),
         ),
     ]
@@ -71,7 +71,7 @@ async def speech_passthrough(request: SpeechRequest) -> dict[str, str]:
 
 def main() -> None:
     uvicorn.run(
-        "paperboat_tts_gateway.app:app",
+        "storayboat_tts_gateway.app:app",
         host="0.0.0.0",
         port=5051,
         reload=False,

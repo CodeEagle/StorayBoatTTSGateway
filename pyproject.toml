@@ -3,21 +3,18 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "paperboat-tts-gateway"
+name = "storayboat-tts-gateway"
 version = "0.1.0"
-description = "Unified TTS gateway for Edge TTS and Kokoro with PaperBoat-friendly word timings."
+description = "Unified TTS gateway for Edge TTS and Kokoro with word-level timing support."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "edge-tts>=7.2.3",
   "fastapi>=0.116.0",
   "httpx>=0.28.1",
-  "kokoro-onnx>=0.3.9",
-  "numpy>=2.2.4",
   "orjson>=3.10.18",
   "pydantic>=2.11.3",
   "python-multipart>=0.0.20",
-  "soundfile>=0.13.1",
   "uvicorn>=0.35.0",
 ]
 
@@ -29,10 +26,10 @@ dev = [
 ]
 
 [project.scripts]
-paperboat-tts-gateway = "paperboat_tts_gateway.app:main"
+storayboat-tts-gateway = "storayboat_tts_gateway.app:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/paperboat_tts_gateway"]
+packages = ["src/storayboat_tts_gateway"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
