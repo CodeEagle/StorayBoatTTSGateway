@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import edge_tts
@@ -34,7 +35,11 @@ class EdgeProvider(TTSProvider):
     def supported_formats(self) -> tuple[AudioFormat, ...]:
         return (AudioFormat.MP3,)
 
-    async def synthesize(self, request: SpeechRequest) -> SynthesisResult:
+    async def synthesize(
+        self,
+        request: SpeechRequest,
+        on_progress: Callable[[float], Awaitable[None]] | None = None,
+    ) -> SynthesisResult:
         if request.response_format != AudioFormat.MP3:
             raise ValueError("Edge provider currently supports mp3 only.")
 
@@ -49,6 +54,10 @@ class EdgeProvider(TTSProvider):
 
         audio_chunks: list[bytes] = []
         words: list[WordTiming] = []
+        text_units = max(len(request.input.strip()), 1)
+        delivered_progress = 0.1
+        if on_progress is not None:
+            await on_progress(delivered_progress)
         async for chunk in communicator.stream():
             chunk_type = chunk.get("type")
             if chunk_type == "audio":
@@ -57,8 +66,17 @@ class EdgeProvider(TTSProvider):
                 timing = self._word_timing_from_chunk(chunk)
                 if timing is not None:
                     words.append(timing)
+                    if on_progress is not None:
+                        consumed_units = sum(max(len(item.text.strip()), 1) for item in words)
+                        synthesized_fraction = min(consumed_units / text_units, 1.0)
+                        next_progress = min(0.85, 0.1 + synthesized_fraction * 0.7)
+                        if next_progress > delivered_progress:
+                            delivered_progress = next_progress
+                            await on_progress(delivered_progress)
 
         audio_bytes = b"".join(audio_chunks)
+        if on_progress is not None:
+            await on_progress(0.9)
         return SynthesisResult(
             format=AudioFormat.MP3,
             audio_base64=base64.b64encode(audio_bytes).decode("ascii"),

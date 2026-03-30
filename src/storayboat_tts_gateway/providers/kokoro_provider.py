@@ -4,6 +4,7 @@ import base64
 import io
 import os
 import re
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -36,7 +37,11 @@ class KokoroProvider(TTSProvider):
     def supported_formats(self) -> tuple[AudioFormat, ...]:
         return (AudioFormat.MP3, AudioFormat.WAV)
 
-    async def synthesize(self, request: SpeechRequest) -> SynthesisResult:
+    async def synthesize(
+        self,
+        request: SpeechRequest,
+        on_progress: Callable[[float], Awaitable[None]] | None = None,
+    ) -> SynthesisResult:
         voice = request.voice or "af_sarah"
         payload: dict[str, Any] = {
             "model": request.model,
@@ -52,10 +57,14 @@ class KokoroProvider(TTSProvider):
         if request.lang:
             payload["lang_code"] = request.lang
 
+        if on_progress is not None:
+            await on_progress(0.15)
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(f"{self._base_url}/dev/captioned_speech", json=payload)
             response.raise_for_status()
             data = response.json()
+        if on_progress is not None:
+            await on_progress(0.8)
 
         audio_base64 = data.get("audio")
         if not isinstance(audio_base64, str) or not audio_base64:
@@ -66,6 +75,8 @@ class KokoroProvider(TTSProvider):
             words = self._estimate_fallback_timings(request.input, audio_base64, request.response_format)
         if not words:
             raise ValueError("Kokoro-FastAPI returned no usable word timestamps, and fallback timing estimation failed.")
+        if on_progress is not None:
+            await on_progress(0.9)
 
         return SynthesisResult(
             format=request.response_format,

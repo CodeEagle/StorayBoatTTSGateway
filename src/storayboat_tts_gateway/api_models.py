@@ -21,6 +21,23 @@ class TimingSource(str, Enum):
     ESTIMATED = "estimated"
 
 
+class JobStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    READY = "ready"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class JobPhase(str, Enum):
+    QUEUED = "queued"
+    SYNTHESIZING = "synthesizing"
+    PACKAGING = "packaging"
+    DOWNLOADING = "downloading"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class SpeechRequest(BaseModel):
     provider: ProviderName
     model: str = "tts-1"
@@ -90,6 +107,29 @@ class APICatalog(BaseModel):
     version: str
     providers: list[ProviderInfo]
     endpoints: list[APIEndpointInfo]
+
+
+class JobCreateResponse(BaseModel):
+    id: str
+    status: JobStatus
+
+
+class JobStateResponse(BaseModel):
+    id: str
+    status: JobStatus
+    phase: JobPhase
+    progress: float = Field(ge=0.0, le=1.0)
+    error: str | None = None
+    download_url: str | None = None
+
+
+class JobEventPayload(BaseModel):
+    id: str
+    status: JobStatus
+    phase: JobPhase
+    progress: float = Field(ge=0.0, le=1.0)
+    error: str | None = None
+    download_url: str | None = None
 
 
 ProviderRoute = Literal["edge", "kokoro"]

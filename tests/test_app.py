@@ -1,8 +1,21 @@
 import base64
 import json
 
+from fastapi.testclient import TestClient
+
 from storayboat_tts_gateway.api_models import AudioFormat, ProviderName, SynthesisResult, TimingSource
-from storayboat_tts_gateway.app import build_api_catalog, build_multipart_bundle
+from storayboat_tts_gateway.app import app, build_api_catalog, build_multipart_bundle, jobs
+
+
+def _job_request_payload() -> dict[str, object]:
+    return {
+        "provider": "edge",
+        "model": "tts-1",
+        "input": "hello world",
+        "voice": "alloy",
+        "response_format": "mp3",
+        "speed": 1.0,
+    }
 
 
 def test_build_multipart_bundle_contains_metadata_and_binary_audio() -> None:
@@ -37,8 +50,52 @@ def test_build_api_catalog_includes_bundle_and_catalog_endpoints() -> None:
     catalog = build_api_catalog()
     paths = {endpoint.path for endpoint in catalog.endpoints}
     assert "/v1/catalog" in paths
+    assert "/v1/audio/jobs" in paths
+    assert "/v1/audio/jobs/{id}/events" in paths
+    assert "/v1/audio/jobs/{id}/bundle" in paths
     assert "/v1/audio/speech_bundle" in paths
     edge = next(provider for provider in catalog.providers if provider.id == "edge")
     assert edge.default_voice == "alloy"
     assert "multipart_bundle" in edge.supported_response_modes
+    assert "job_stream" in edge.supported_response_modes
     assert "alloy" in edge.accepted_voice_aliases
+
+
+def test_audio_job_endpoints_stream_events_and_bundle(monkeypatch) -> None:
+    async def fake_synthesize(request, on_progress=None):
+        if on_progress is not None:
+            await on_progress(0.4)
+            await on_progress(0.8)
+        return SynthesisResult(
+            format=AudioFormat.MP3,
+            audio_base64=base64.b64encode(b"job-audio").decode("ascii"),
+            words=[],
+            timing_source=TimingSource.WORD_BOUNDARY,
+            provider=ProviderName.EDGE,
+            voice=request.voice or "alloy",
+            model=request.model,
+            estimated=False,
+        )
+
+    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+    jobs.clear()
+
+    client = TestClient(app)
+    create_response = client.post("/v1/audio/jobs", json=_job_request_payload())
+    assert create_response.status_code == 200
+    job_id = create_response.json()["id"]
+
+    state_response = client.get(f"/v1/audio/jobs/{job_id}")
+    assert state_response.status_code == 200
+    assert state_response.json()["id"] == job_id
+
+    events_response = client.get(f"/v1/audio/jobs/{job_id}/events")
+    assert events_response.status_code == 200
+    assert "event: snapshot" in events_response.text
+    assert f'"/v1/audio/jobs/{job_id}/bundle"' in events_response.text
+
+    bundle_response = client.get(f"/v1/audio/jobs/{job_id}/bundle")
+    assert bundle_response.status_code == 200
+    assert bundle_response.headers["content-type"].startswith("multipart/mixed; boundary=")
+    assert bundle_response.headers["accept-ranges"] == "bytes"
+    assert bundle_response.content
