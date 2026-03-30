@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 
 from .api_models import APICatalog, APIEndpointInfo, ProviderInfo, ProviderName, SpeechRequest, SynthesisResult, VoiceInfo
-from .providers.edge_provider import EdgeProvider
+from .providers.edge_provider import EdgeProvider, OPENAI_VOICE_ALIASES
 from .providers.kokoro_provider import KokoroProvider
 
 app = FastAPI(title="StorayBoat TTS Gateway", version="0.1.0")
@@ -29,16 +29,45 @@ def build_api_catalog() -> APICatalog:
         ProviderInfo(
             id=ProviderName.EDGE,
             name="Edge TTS",
+            default_model="tts-1",
+            default_voice="alloy",
             supports_real_word_timing=True,
             supports_estimated_word_timing=False,
             supported_formats=list(get_provider(ProviderName.EDGE).supported_formats),
+            supported_response_modes=["json_base64", "multipart_bundle"],
+            voice_list_path="/v1/voices?provider=edge",
+            synthesize_paths=[
+                "/v1/audio/speech_with_timestamps",
+                "/v1/{provider}/audio/speech_with_timestamps",
+                "/v1/audio/speech",
+                "/v1/audio/speech_bundle",
+            ],
+            accepted_voice_aliases=sorted(OPENAI_VOICE_ALIASES.keys()),
+            notes=[
+                "Voice list returns real Edge voices only.",
+                "OpenAI-style aliases are accepted for synthesis input.",
+            ],
         ),
         ProviderInfo(
             id=ProviderName.KOKORO,
             name="Kokoro",
+            default_model="kokoro",
+            default_voice="af_sarah",
             supports_real_word_timing=True,
             supports_estimated_word_timing=False,
             supported_formats=list(get_provider(ProviderName.KOKORO).supported_formats),
+            supported_response_modes=["json_base64", "multipart_bundle"],
+            voice_list_path="/v1/voices?provider=kokoro",
+            synthesize_paths=[
+                "/v1/audio/speech_with_timestamps",
+                "/v1/{provider}/audio/speech_with_timestamps",
+                "/v1/audio/speech",
+                "/v1/audio/speech_bundle",
+            ],
+            notes=[
+                "Requires a reachable Kokoro-FastAPI backend.",
+                "Word timings come from /dev/captioned_speech.",
+            ],
         ),
     ]
     endpoints = [

@@ -64,9 +64,16 @@ class SynthesisResult(BaseModel):
 class ProviderInfo(BaseModel):
     id: ProviderName
     name: str
+    default_model: str
+    default_voice: str
     supports_real_word_timing: bool
     supports_estimated_word_timing: bool
     supported_formats: list[AudioFormat]
+    supported_response_modes: list[str]
+    voice_list_path: str
+    synthesize_paths: list[str]
+    accepted_voice_aliases: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
 
 
 class APIEndpointInfo(BaseModel):

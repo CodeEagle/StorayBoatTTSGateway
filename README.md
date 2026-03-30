@@ -76,6 +76,8 @@ curl 'http://127.0.0.1:5051/v1/catalog'
 这个接口会返回：
 
 - providers 能力列表
+- 每个 provider 的默认 model / 默认 voice / 支持的返回模式
+- 每个 provider 的 voice 列表地址和可接受 alias
 - 所有 API 的 method / path / summary / response_type
 
 ### 3. 合成并返回音频 + 词级时间戳

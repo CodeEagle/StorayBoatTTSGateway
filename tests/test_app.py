@@ -38,3 +38,7 @@ def test_build_api_catalog_includes_bundle_and_catalog_endpoints() -> None:
     paths = {endpoint.path for endpoint in catalog.endpoints}
     assert "/v1/catalog" in paths
     assert "/v1/audio/speech_bundle" in paths
+    edge = next(provider for provider in catalog.providers if provider.id == "edge")
+    assert edge.default_voice == "alloy"
+    assert "multipart_bundle" in edge.supported_response_modes
+    assert "alloy" in edge.accepted_voice_aliases
