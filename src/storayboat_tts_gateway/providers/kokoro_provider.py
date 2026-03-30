@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import base64
+import io
 import os
+import re
 from typing import Any
 
 import httpx
+from mutagen import File as MutagenFile
 
 from ..api_models import (
     AudioFormat,
@@ -15,6 +19,8 @@ from ..api_models import (
     WordTiming,
 )
 from .base import TTSProvider
+
+TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[\u3040-\u30ff]|[\uac00-\ud7af]|\w+|[^\w\s]", re.UNICODE)
 
 
 class KokoroProvider(TTSProvider):
@@ -40,8 +46,8 @@ class KokoroProvider(TTSProvider):
             "response_format": request.response_format.value,
             "stream": False,
             "return_download_link": False,
-            # Keep input text stable so timestamp text aligns better with callers.
-            "normalization_options": {"normalize": False},
+            # Keep input text stable by default, but allow callers to override per request.
+            "normalization_options": request.normalization_options or {"normalize": False},
         }
         if request.lang:
             payload["lang_code"] = request.lang
@@ -57,17 +63,19 @@ class KokoroProvider(TTSProvider):
 
         words = self._parse_timestamps(data.get("timestamps"))
         if not words:
-            raise ValueError("Kokoro-FastAPI returned no usable word timestamps.")
+            words = self._estimate_fallback_timings(request.input, audio_base64, request.response_format)
+        if not words:
+            raise ValueError("Kokoro-FastAPI returned no usable word timestamps, and fallback timing estimation failed.")
 
         return SynthesisResult(
             format=request.response_format,
             audio_base64=audio_base64,
             words=words,
-            timing_source=TimingSource.WORD_BOUNDARY,
+            timing_source=TimingSource.WORD_BOUNDARY if data.get("timestamps") else TimingSource.ESTIMATED,
             provider=ProviderName.KOKORO,
             voice=voice,
             model=request.model,
-            estimated=False,
+            estimated=not bool(data.get("timestamps")),
         )
 
     async def list_voices(self) -> list[VoiceInfo]:
@@ -156,3 +164,54 @@ class KokoroProvider(TTSProvider):
         if isinstance(tags, list):
             return [str(tag) for tag in tags]
         return ["kokoro-fastapi"]
+
+    def _estimate_fallback_timings(
+        self,
+        text: str,
+        audio_base64: str,
+        audio_format: AudioFormat,
+    ) -> list[WordTiming]:
+        tokens = TOKEN_RE.findall(text)
+        if not tokens:
+            return []
+
+        duration_ms = self._audio_duration_ms(audio_base64, audio_format)
+        if duration_ms <= 0:
+            # Final fallback: rough average per token. Enough to avoid hard failure.
+            duration_ms = max(400, len(tokens) * 240)
+
+        weights = [max(1, len(token.encode("utf-8"))) for token in tokens]
+        total_weight = sum(weights)
+        cursor = 0
+        items: list[WordTiming] = []
+
+        for index, (token, weight) in enumerate(zip(tokens, weights, strict=False)):
+            start_ms = cursor
+            if index == len(tokens) - 1:
+                end_ms = duration_ms
+            else:
+                slice_ms = max(1, round(duration_ms * (weight / total_weight)))
+                end_ms = min(duration_ms, cursor + slice_ms)
+            items.append(WordTiming(text=token, start_ms=start_ms, end_ms=end_ms))
+            cursor = end_ms
+        return items
+
+    def _audio_duration_ms(self, audio_base64: str, audio_format: AudioFormat) -> int:
+        try:
+            audio_bytes = base64.b64decode(audio_base64)
+        except Exception:
+            return 0
+
+        try:
+            handle = io.BytesIO(audio_bytes)
+            if audio_format == AudioFormat.MP3:
+                handle.name = "audio.mp3"
+            elif audio_format == AudioFormat.WAV:
+                handle.name = "audio.wav"
+            parsed = MutagenFile(handle)
+            length = getattr(getattr(parsed, "info", None), "length", 0)
+            if not length:
+                return 0
+            return int(round(length * 1000))
+        except Exception:
+            return 0

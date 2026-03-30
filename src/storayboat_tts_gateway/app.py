@@ -12,7 +12,7 @@ from .api_models import APICatalog, APIEndpointInfo, ProviderInfo, ProviderName,
 from .providers.edge_provider import EdgeProvider, OPENAI_VOICE_ALIASES
 from .providers.kokoro_provider import KokoroProvider
 
-app = FastAPI(title="StorayBoat TTS Gateway", version="0.1.0")
+app = FastAPI(title="StorayBoat TTS Gateway", version="0.2.0")
 
 providers = {
     ProviderName.EDGE: EdgeProvider(),
@@ -67,6 +67,7 @@ def build_api_catalog() -> APICatalog:
             notes=[
                 "Requires a reachable Kokoro-FastAPI backend.",
                 "Word timings come from /dev/captioned_speech.",
+                "normalization_options can be overridden per request.",
             ],
         ),
     ]

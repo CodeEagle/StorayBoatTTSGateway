@@ -30,6 +30,7 @@ class SpeechRequest(BaseModel):
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
     lang: str | None = None
     stream: bool | None = None
+    normalization_options: dict[str, bool] | None = None
 
 
 class WordTiming(BaseModel):

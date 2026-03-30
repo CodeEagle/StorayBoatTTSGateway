@@ -12,6 +12,7 @@
   - 通过 `GET /v1/audio/voices` 获取声音列表
   - 通过 `POST /dev/captioned_speech` 获取音频和逐词时间戳
   - 直接复用 `Kokoro-FastAPI` 的真实时间戳结果
+  - 支持每次请求单独覆盖 `normalization_options`
 
 ## 安装
 
@@ -111,7 +112,10 @@ curl -X POST http://127.0.0.1:5051/v1/audio/speech_with_timestamps \
     "input": "Hello world!",
     "voice": "af_bella",
     "response_format": "mp3",
-    "speed": 1.0
+    "speed": 1.0,
+    "normalization_options": {
+      "normalize": false
+    }
   }'
 ```
 
@@ -168,9 +172,29 @@ curl -X POST http://127.0.0.1:5051/v1/audio/speech_bundle \
 - `STORAYBOAT_PORT`
   默认 `5051`
 
+## normalization_options
+
+`Kokoro` 请求现在支持直接透传：
+
+```json
+"normalization_options": {
+  "normalize": false
+}
+```
+
+规则是：
+
+- 不传时，网关默认发 `{"normalize": false}`
+- 传了就以调用方为准
+
+所以前端可以按场景切换：
+
+- 阅读高亮优先：`false`
+- 更看重朗读自然度：`true`
+
 ## 说明
 
 - `Edge` 的词级时间戳是真实边界。
 - `Kokoro` 的词级时间戳来自 `Kokoro-FastAPI` 的 `/dev/captioned_speech`。
-- 为了减少文本归一化导致的丢词，这个网关默认会带上 `normalization_options.normalize=false` 转发给 `Kokoro-FastAPI`。
+- 为了减少文本归一化导致的丢词，网关默认会带上 `normalization_options.normalize=false`，但现在可以按请求覆盖。
 - 参考：[`Kokoro-FastAPI` README](https://github.com/remsky/Kokoro-FastAPI)
