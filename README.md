@@ -94,6 +94,28 @@ curl -X POST http://127.0.0.1:5051/v1/audio/speech_with_timestamps \
 }
 ```
 
+### 4. 更省流量的 multipart 返回
+
+如果你不想承担 `base64` 的额外体积，可以改用：
+
+```bash
+curl -X POST http://127.0.0.1:5051/v1/audio/speech_bundle \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "provider": "edge",
+    "model": "tts-1",
+    "input": "Hello world.",
+    "voice": "alloy",
+    "response_format": "mp3",
+    "speed": 1.0
+  }'
+```
+
+响应是 `multipart/mixed`，包含两个 part：
+
+- `metadata.json`
+- `audio.mp3` 或 `audio.wav`
+
 ## 配置项
 
 - `KOKORO_FASTAPI_BASE_URL`

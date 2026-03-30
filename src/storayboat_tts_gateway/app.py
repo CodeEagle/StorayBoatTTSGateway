@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import base64
+import json
+from uuid import uuid4
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 
 from .api_models import ProviderInfo, ProviderName, SpeechRequest, SynthesisResult, VoiceInfo
 from .providers.edge_provider import EdgeProvider
@@ -17,6 +22,37 @@ providers = {
 
 def get_provider(name: ProviderName):
     return providers[name]
+
+
+def build_multipart_bundle(result: SynthesisResult) -> tuple[bytes, str]:
+    boundary = f"storayboat-{uuid4().hex}"
+    metadata = result.model_dump(exclude={"audio_base64"})
+    metadata_bytes = json.dumps(metadata, ensure_ascii=False).encode("utf-8")
+    audio_bytes = base64.b64decode(result.audio_base64)
+    audio_filename = f"audio.{result.format.value}"
+    audio_content_type = {
+        "mp3": "audio/mpeg",
+        "wav": "audio/wav",
+    }.get(result.format.value, "application/octet-stream")
+
+    parts = [
+        (
+            f"--{boundary}\r\n"
+            "Content-Type: application/json; charset=utf-8\r\n"
+            'Content-Disposition: attachment; name="metadata"; filename="metadata.json"\r\n\r\n'
+        ).encode("utf-8")
+        + metadata_bytes
+        + b"\r\n",
+        (
+            f"--{boundary}\r\n"
+            f"Content-Type: {audio_content_type}\r\n"
+            f'Content-Disposition: attachment; name="audio"; filename="{audio_filename}"\r\n\r\n'
+        ).encode("utf-8")
+        + audio_bytes
+        + b"\r\n",
+        f"--{boundary}--\r\n".encode("utf-8"),
+    ]
+    return b"".join(parts), boundary
 
 
 @app.get("/healthz")
@@ -67,6 +103,16 @@ async def provider_speech_with_timestamps(provider: ProviderName, request: Speec
 async def speech_passthrough(request: SpeechRequest) -> dict[str, str]:
     result = await speech_with_timestamps(request)
     return {"audio_base64": result.audio_base64, "format": result.format.value}
+
+
+@app.post("/v1/audio/speech_bundle")
+async def speech_bundle(request: SpeechRequest) -> Response:
+    result = await speech_with_timestamps(request)
+    payload, boundary = build_multipart_bundle(result)
+    return Response(
+        content=payload,
+        media_type=f'multipart/mixed; boundary="{boundary}"',
+    )
 
 
 def main() -> None:
