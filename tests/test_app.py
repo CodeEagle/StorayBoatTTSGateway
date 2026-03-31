@@ -92,6 +92,9 @@ def test_audio_job_endpoints_stream_events_and_bundle(monkeypatch) -> None:
     events_response = client.get(f"/v1/audio/jobs/{job_id}/events")
     assert events_response.status_code == 200
     assert "event: snapshot" in events_response.text
+    assert "event: started" in events_response.text
+    assert "event: synth_progress" in events_response.text
+    assert "event: completed" in events_response.text
     assert f'"/v1/audio/jobs/{job_id}/bundle"' in events_response.text
 
     bundle_response = client.get(f"/v1/audio/jobs/{job_id}/bundle")
@@ -99,3 +102,51 @@ def test_audio_job_endpoints_stream_events_and_bundle(monkeypatch) -> None:
     assert bundle_response.headers["content-type"].startswith("multipart/mixed; boundary=")
     assert bundle_response.headers["accept-ranges"] == "bytes"
     assert bundle_response.content
+
+
+def test_provider_scoped_direct_synthesis_accepts_provider_from_path_only(monkeypatch) -> None:
+    async def fake_synthesize(request, on_progress=None):
+        return SynthesisResult(
+            format=AudioFormat.MP3,
+            audio_base64=base64.b64encode(b"path-only").decode("ascii"),
+            words=[],
+            timing_source=TimingSource.WORD_BOUNDARY,
+            provider=ProviderName.EDGE,
+            voice=request.voice or "alloy",
+            model=request.model,
+            estimated=False,
+        )
+
+    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/edge/audio/speech_with_timestamps",
+        json={
+            "model": "tts-1",
+            "input": "hello world",
+            "voice": "alloy",
+            "response_format": "mp3",
+            "speed": 1.0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "edge"
+
+
+def test_direct_synthesis_requires_provider_on_unscoped_route() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/v1/audio/speech_with_timestamps",
+        json={
+            "model": "tts-1",
+            "input": "hello world",
+            "voice": "alloy",
+            "response_format": "mp3",
+            "speed": 1.0,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "provider is required"

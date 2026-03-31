@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -29,6 +30,13 @@ OPENAI_VOICE_ALIASES: dict[str, str] = {
     "shimmer": "en-US-AnaNeural",
 }
 
+LANGUAGE_DEFAULT_VOICES: dict[str, str] = {
+    "en": "en-US-AvaNeural",
+    "zh": "zh-CN-XiaoxiaoNeural",
+    "ja": "ja-JP-NanamiNeural",
+    "ko": "ko-KR-SunHiNeural",
+}
+
 
 class EdgeProvider(TTSProvider):
     @property
@@ -43,10 +51,11 @@ class EdgeProvider(TTSProvider):
         if request.response_format != AudioFormat.MP3:
             raise ValueError("Edge provider currently supports mp3 only.")
 
-        voice = self._resolve_voice(request.voice)
+        input_text = request.sanitized_input()
+        voice = self._resolve_voice(request)
         rate = self._speed_to_rate(request.speed)
         communicator = edge_tts.Communicate(
-            text=request.input,
+            text=input_text,
             voice=voice,
             rate=rate,
             boundary="WordBoundary",
@@ -54,7 +63,7 @@ class EdgeProvider(TTSProvider):
 
         audio_chunks: list[bytes] = []
         words: list[WordTiming] = []
-        text_units = max(len(request.input.strip()), 1)
+        text_units = max(len(input_text.strip()), 1)
         delivered_progress = 0.1
         if on_progress is not None:
             await on_progress(delivered_progress)
@@ -92,10 +101,27 @@ class EdgeProvider(TTSProvider):
         catalog = await self._load_catalog()
         return sorted(catalog, key=lambda item: (item.locale or "", item.name, item.id))
 
-    def _resolve_voice(self, requested: str | None) -> str:
+    def _resolve_voice(self, request: SpeechRequest) -> str:
+        requested = request.voice
         if not requested:
-            return OPENAI_VOICE_ALIASES["alloy"]
+            return self._default_voice_for_request(request)
         return OPENAI_VOICE_ALIASES.get(requested, requested)
+
+    def _default_voice_for_request(self, request: SpeechRequest) -> str:
+        normalized_lang = request.normalized_lang()
+        if normalized_lang:
+            language_key = normalized_lang.split("-", 1)[0]
+            if language_key in LANGUAGE_DEFAULT_VOICES:
+                return LANGUAGE_DEFAULT_VOICES[language_key]
+
+        input_text = request.sanitized_input()
+        if _contains_han(input_text):
+            return LANGUAGE_DEFAULT_VOICES["zh"]
+        if _contains_kana(input_text):
+            return LANGUAGE_DEFAULT_VOICES["ja"]
+        if _contains_hangul(input_text):
+            return LANGUAGE_DEFAULT_VOICES["ko"]
+        return OPENAI_VOICE_ALIASES["alloy"]
 
     def _speed_to_rate(self, speed: float) -> str:
         delta = round((speed - 1.0) * 100)
@@ -256,3 +282,15 @@ def edge_country_code(voice_locale: str | None) -> str | None:
 def _flatten_voice_tags(voice: dict[str, Any]) -> list[str]:
     tag_groups = [voice.get("VoiceTag", {}).get("ContentCategories", [])]
     return [tag for group in tag_groups for tag in group if isinstance(tag, str)]
+
+
+def _contains_han(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", text))
+
+
+def _contains_kana(text: str) -> bool:
+    return bool(re.search(r"[\u3040-\u30ff]", text))
+
+
+def _contains_hangul(text: str) -> bool:
+    return bool(re.search(r"[\uac00-\ud7af]", text))

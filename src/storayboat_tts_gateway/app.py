@@ -47,6 +47,8 @@ class AudioJobRecord:
     result: SynthesisResult | None = None
     bundle: bytes | None = None
     boundary: str | None = None
+    next_event_id: int = 0
+    event_history: list[tuple[int, str, dict[str, Any]]] = field(default_factory=list)
     subscribers: set[asyncio.Queue[tuple[str, dict[str, Any]]]] = field(default_factory=set)
 
     @property
@@ -81,6 +83,12 @@ jobs: dict[str, AudioJobRecord] = {}
 
 def get_provider(name: ProviderName):
     return providers[name]
+
+
+def require_provider(request: SpeechRequest) -> ProviderName:
+    if request.provider is None:
+        raise HTTPException(status_code=400, detail="provider is required")
+    return request.provider
 
 
 def build_api_catalog() -> APICatalog:
@@ -188,6 +196,9 @@ def build_multipart_bundle(result: SynthesisResult) -> tuple[bytes, str]:
 
 async def publish_job_event(job: AudioJobRecord, event_type: str) -> None:
     payload = job.to_event_payload().model_dump(mode="json", exclude_none=True)
+    job.next_event_id += 1
+    event_record = (job.next_event_id, event_type, payload)
+    job.event_history.append(event_record)
     for queue in list(job.subscribers):
         await queue.put((event_type, payload))
 
@@ -215,6 +226,7 @@ async def update_job(
 async def run_job(job_id: str) -> None:
     job = jobs[job_id]
     try:
+        provider = require_provider(job.request)
         await update_job(
             job,
             status=JobStatus.RUNNING,
@@ -222,7 +234,7 @@ async def run_job(job_id: str) -> None:
             progress=0.05,
             event_type="started",
         )
-        result = await get_provider(job.request.provider).synthesize(
+        result = await get_provider(provider).synthesize(
             job.request,
             on_progress=lambda value: update_job(
                 job,
@@ -290,6 +302,7 @@ async def list_voices(provider: ProviderName) -> list[VoiceInfo]:
 
 @app.post("/v1/audio/jobs", response_model=JobCreateResponse)
 async def create_audio_job(request: SpeechRequest) -> JobCreateResponse:
+    require_provider(request)
     job = AudioJobRecord(id=f"job_{uuid4().hex}", request=request)
     jobs[job.id] = job
     asyncio.create_task(run_job(job.id))
@@ -319,6 +332,18 @@ async def stream_audio_job_events(job_id: str) -> StreamingResponse:
             initial_payload = job.to_event_payload().model_dump(mode="json", exclude_none=True)
             yield f"event: {initial_event}\n".encode("utf-8")
             yield f"data: {json.dumps(initial_payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+            replay_upto = job.next_event_id
+            for event_id, event_type, payload in job.event_history:
+                if event_id > replay_upto:
+                    break
+                yield f"event: {event_type}\n".encode("utf-8")
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+            if replay_upto and job.event_history and job.event_history[-1][0] == replay_upto:
+                if job.event_history[-1][1] in {"completed", "failed"}:
+                    return
+
             if job.status in {JobStatus.COMPLETED, JobStatus.FAILED}:
                 return
 
@@ -362,8 +387,10 @@ async def download_audio_job_bundle(job_id: str) -> Response:
 @app.post("/v1/audio/speech_with_timestamps", response_model=SynthesisResult)
 async def speech_with_timestamps(request: SpeechRequest) -> SynthesisResult:
     try:
-        return await get_provider(request.provider).synthesize(request)
+        return await get_provider(require_provider(request)).synthesize(request)
     except Exception as exc:  # pragma: no cover - translated for API callers
+        if isinstance(exc, HTTPException):
+            raise exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

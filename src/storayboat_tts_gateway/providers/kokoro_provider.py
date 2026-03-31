@@ -42,10 +42,11 @@ class KokoroProvider(TTSProvider):
         request: SpeechRequest,
         on_progress: Callable[[float], Awaitable[None]] | None = None,
     ) -> SynthesisResult:
+        input_text = request.sanitized_input()
         voice = request.voice or "af_sarah"
         payload: dict[str, Any] = {
             "model": request.model,
-            "input": request.input,
+            "input": input_text,
             "voice": voice,
             "speed": request.speed,
             "response_format": request.response_format.value,
@@ -72,7 +73,7 @@ class KokoroProvider(TTSProvider):
 
         words = self._parse_timestamps(data.get("timestamps"))
         if not words:
-            words = self._estimate_fallback_timings(request.input, audio_base64, request.response_format)
+            words = self._estimate_fallback_timings(input_text, audio_base64, request.response_format)
         if not words:
             raise ValueError("Kokoro-FastAPI returned no usable word timestamps, and fallback timing estimation failed.")
         if on_progress is not None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Literal
 
@@ -39,7 +40,7 @@ class JobPhase(str, Enum):
 
 
 class SpeechRequest(BaseModel):
-    provider: ProviderName
+    provider: ProviderName | None = None
     model: str = "tts-1"
     input: str = Field(min_length=1)
     voice: str | None = None
@@ -48,6 +49,17 @@ class SpeechRequest(BaseModel):
     lang: str | None = None
     stream: bool | None = None
     normalization_options: dict[str, bool] | None = None
+
+    def normalized_lang(self) -> str | None:
+        if not self.lang:
+            return None
+        return self.lang.strip().replace("_", "-").lower() or None
+
+    def sanitized_input(self) -> str:
+        text = self.input
+        cleaned = "".join(_sanitize_character(character) for character in text)
+        collapsed = re.sub(r" {2,}", " ", cleaned).strip()
+        return collapsed or text.strip() or text
 
 
 class WordTiming(BaseModel):
@@ -133,3 +145,11 @@ class JobEventPayload(BaseModel):
 
 
 ProviderRoute = Literal["edge", "kokoro"]
+
+
+def _sanitize_character(character: str) -> str:
+    if character in {"\r", "\n", "\t"}:
+        return " "
+    if ord(character) < 0x20:
+        return ""
+    return character
