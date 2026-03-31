@@ -3,8 +3,8 @@ import json
 
 from fastapi.testclient import TestClient
 
-from storayboat_tts_gateway.api_models import AudioFormat, ProviderName, SynthesisResult, TimingSource
-from storayboat_tts_gateway.app import app, build_api_catalog, build_multipart_bundle, jobs
+from storyboat_tts_gateway.api_models import AudioFormat, ProviderName, SynthesisResult, TimingSource
+from storyboat_tts_gateway.app import app, build_api_catalog, build_multipart_bundle, jobs
 
 
 def _job_request_payload() -> dict[str, object]:
@@ -78,7 +78,7 @@ def test_audio_job_endpoints_stream_events_and_bundle(monkeypatch) -> None:
             estimated=False,
         )
 
-    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+    monkeypatch.setattr("storyboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
     jobs.clear()
 
     client = TestClient(app)
@@ -118,7 +118,7 @@ def test_provider_scoped_direct_synthesis_accepts_provider_from_path_only(monkey
             estimated=False,
         )
 
-    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+    monkeypatch.setattr("storyboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
 
     client = TestClient(app)
     response = client.post(
@@ -166,7 +166,7 @@ def test_audio_speech_returns_raw_audio_bytes(monkeypatch) -> None:
             estimated=False,
         )
 
-    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+    monkeypatch.setattr("storyboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
 
     client = TestClient(app)
     response = client.post("/v1/audio/speech", json=_job_request_payload())
@@ -190,7 +190,7 @@ def test_audio_speech_base64_returns_compatibility_json(monkeypatch) -> None:
             estimated=False,
         )
 
-    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+    monkeypatch.setattr("storyboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
 
     client = TestClient(app)
     response = client.post("/v1/audio/speech_base64", json=_job_request_payload())

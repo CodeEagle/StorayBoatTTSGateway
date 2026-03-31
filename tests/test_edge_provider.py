@@ -1,5 +1,5 @@
-from storayboat_tts_gateway.api_models import SpeechRequest
-from storayboat_tts_gateway.providers.edge_provider import EdgeProvider, edge_voice_display_name, parse_edge_voices_catalog
+from storyboat_tts_gateway.api_models import SpeechRequest
+from storyboat_tts_gateway.providers.edge_provider import EdgeProvider, edge_voice_display_name, parse_edge_voices_catalog
 
 
 def test_parse_edge_voices_catalog_matches_app_style() -> None:

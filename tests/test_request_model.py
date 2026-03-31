@@ -1,4 +1,4 @@
-from storayboat_tts_gateway.api_models import SpeechRequest
+from storyboat_tts_gateway.api_models import SpeechRequest
 
 
 def test_speech_request_accepts_normalization_options() -> None:

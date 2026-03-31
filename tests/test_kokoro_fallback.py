@@ -1,7 +1,7 @@
 import base64
 
-from storayboat_tts_gateway.api_models import AudioFormat
-from storayboat_tts_gateway.providers.kokoro_provider import KokoroProvider
+from storyboat_tts_gateway.api_models import AudioFormat
+from storyboat_tts_gateway.providers.kokoro_provider import KokoroProvider
 
 
 def test_estimate_fallback_timings_handles_chinese_text() -> None:

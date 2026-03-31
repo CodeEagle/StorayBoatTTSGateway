@@ -13,4 +13,4 @@ RUN python -m pip install --upgrade pip && \
 
 EXPOSE 5051
 
-CMD ["python", "-m", "uvicorn", "storayboat_tts_gateway.app:app", "--host", "0.0.0.0", "--port", "5051"]
+CMD ["python", "-m", "uvicorn", "storyboat_tts_gateway.app:app", "--host", "0.0.0.0", "--port", "5051"]

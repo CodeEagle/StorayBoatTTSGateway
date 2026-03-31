@@ -28,7 +28,7 @@ from .api_models import (
 from .providers.edge_provider import EdgeProvider, OPENAI_VOICE_ALIASES
 from .providers.kokoro_provider import KokoroProvider
 
-app = FastAPI(title="StorayBoat TTS Gateway", version="0.2.1")
+app = FastAPI(title="StoryBoat TTS Gateway", version="0.2.1")
 
 providers = {
     ProviderName.EDGE: EdgeProvider(),
@@ -167,7 +167,7 @@ def build_api_catalog() -> APICatalog:
 
 
 def build_multipart_bundle(result: SynthesisResult) -> tuple[bytes, str]:
-    boundary = f"storayboat-{uuid4().hex}"
+    boundary = f"storyboat-{uuid4().hex}"
     metadata = result.model_dump(exclude={"audio_base64"})
     metadata_bytes = json.dumps(metadata, ensure_ascii=False).encode("utf-8")
     audio_bytes = base64.b64decode(result.audio_base64)
@@ -442,7 +442,7 @@ async def speech_bundle(request: SpeechRequest) -> Response:
 
 def main() -> None:
     uvicorn.run(
-        "storayboat_tts_gateway.app:app",
+        "storyboat_tts_gateway.app:app",
         host="0.0.0.0",
         port=5051,
         reload=False,

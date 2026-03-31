@@ -2,8 +2,8 @@ import base64
 
 import pytest
 
-from storayboat_tts_gateway.api_models import SpeechRequest
-from storayboat_tts_gateway.providers.kokoro_provider import KokoroProvider
+from storyboat_tts_gateway.api_models import SpeechRequest
+from storyboat_tts_gateway.providers.kokoro_provider import KokoroProvider
 
 
 def test_parse_timestamp_entries_supports_seconds_and_text_key() -> None:
@@ -67,7 +67,7 @@ async def test_kokoro_provider_sanitizes_input_before_upstream_request(monkeypat
             captured["json"] = json
             return DummyResponse()
 
-    monkeypatch.setattr("storayboat_tts_gateway.providers.kokoro_provider.httpx.AsyncClient", DummyClient)
+    monkeypatch.setattr("storyboat_tts_gateway.providers.kokoro_provider.httpx.AsyncClient", DummyClient)
 
     provider = KokoroProvider(base_url="http://localhost:8880")
     request = SpeechRequest(provider="kokoro", input="你好\t世界\n第二行\x00")

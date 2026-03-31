@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "storayboat-tts-gateway"
+name = "storyboat-tts-gateway"
 version = "0.2.1"
 description = "Unified TTS gateway for Edge TTS and Kokoro with word-level timing support."
 readme = "README.md"
@@ -22,17 +22,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-  "pytest>=8.3.5",
-  "pytest-asyncio>=1.1.0",
-  "ruff>=0.12.4",
-]
+dev = ["pytest>=8.3.5", "pytest-asyncio>=1.1.0", "ruff>=0.12.4"]
 
 [project.scripts]
-storayboat-tts-gateway = "storayboat_tts_gateway.app:main"
+storyboat-tts-gateway = "storyboat_tts_gateway.app:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/storayboat_tts_gateway"]
+packages = ["src/storyboat_tts_gateway"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
