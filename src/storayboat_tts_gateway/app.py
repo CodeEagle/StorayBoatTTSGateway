@@ -111,6 +111,7 @@ def build_api_catalog() -> APICatalog:
                 "/v1/audio/speech_with_timestamps",
                 "/v1/{provider}/audio/speech_with_timestamps",
                 "/v1/audio/speech",
+                "/v1/audio/speech_base64",
                 "/v1/audio/speech_bundle",
             ],
             accepted_voice_aliases=sorted(OPENAI_VOICE_ALIASES.keys()),
@@ -137,6 +138,7 @@ def build_api_catalog() -> APICatalog:
                 "/v1/audio/speech_with_timestamps",
                 "/v1/{provider}/audio/speech_with_timestamps",
                 "/v1/audio/speech",
+                "/v1/audio/speech_base64",
                 "/v1/audio/speech_bundle",
             ],
             notes=[
@@ -157,7 +159,8 @@ def build_api_catalog() -> APICatalog:
         APIEndpointInfo(method="GET", path="/v1/audio/jobs/{id}/bundle", summary="Download multipart metadata.json plus binary audio for a completed job", response_type="multipart/mixed"),
         APIEndpointInfo(method="POST", path="/v1/audio/speech_with_timestamps", summary="Return JSON with audio_base64 and word timings", response_type="application/json", provider_optional=False),
         APIEndpointInfo(method="POST", path="/v1/{provider}/audio/speech_with_timestamps", summary="Provider-scoped JSON synthesis endpoint", response_type="application/json", provider_optional=True),
-        APIEndpointInfo(method="POST", path="/v1/audio/speech", summary="Return compatibility JSON with audio_base64 and format", response_type="application/json", provider_optional=False),
+        APIEndpointInfo(method="POST", path="/v1/audio/speech", summary="Return raw audio bytes", response_type="audio/mpeg", provider_optional=False),
+        APIEndpointInfo(method="POST", path="/v1/audio/speech_base64", summary="Return compatibility JSON with audio_base64 and format", response_type="application/json", provider_optional=False),
         APIEndpointInfo(method="POST", path="/v1/audio/speech_bundle", summary="Return multipart metadata.json plus binary audio", response_type="multipart/mixed", provider_optional=False),
     ]
     return APICatalog(service=app.title, version=app.version, providers=provider_infos, endpoints=endpoints)
@@ -401,7 +404,28 @@ async def provider_speech_with_timestamps(provider: ProviderName, request: Speec
 
 
 @app.post("/v1/audio/speech")
-async def speech_passthrough(request: SpeechRequest) -> dict[str, str]:
+async def speech_passthrough(request: SpeechRequest) -> Response:
+    result = await speech_with_timestamps(request)
+    audio_bytes = base64.b64decode(result.audio_base64)
+    media_type = {
+        "mp3": "audio/mpeg",
+        "wav": "audio/wav",
+    }.get(result.format.value, "application/octet-stream")
+    return Response(
+        content=audio_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Length": str(len(audio_bytes)),
+            "Content-Disposition": f'inline; filename="speech.{result.format.value}"',
+            "X-Audio-Format": result.format.value,
+            "X-Audio-Provider": result.provider.value,
+            "X-Audio-Voice": result.voice,
+        },
+    )
+
+
+@app.post("/v1/audio/speech_base64")
+async def speech_base64(request: SpeechRequest) -> dict[str, str]:
     result = await speech_with_timestamps(request)
     return {"audio_base64": result.audio_base64, "format": result.format.value}
 

@@ -137,7 +137,30 @@ curl -X POST http://127.0.0.1:5051/v1/audio/speech_with_timestamps \
 }
 ```
 
-### 4. 更省流量的 multipart 返回
+### 4. 直接返回原始音频
+
+`POST /v1/audio/speech` 现在直接返回二进制音频，`Content-Type` 会是 `audio/mpeg` 或 `audio/wav`。
+
+如果调用方要“直接播放语音”，优先用这个接口，不要再把 JSON 文本当音频播。
+
+### 5. 兼容旧调用方的 base64 JSON 返回
+
+如果你的前端还需要旧的 `audio_base64` JSON，可以改用：
+
+```bash
+curl -X POST http://127.0.0.1:5051/v1/audio/speech_base64 \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "provider": "edge",
+    "model": "tts-1",
+    "input": "Hello world.",
+    "voice": "alloy",
+    "response_format": "mp3",
+    "speed": 1.0
+  }'
+```
+
+### 6. 更省流量的 multipart 返回
 
 如果你不想承担 `base64` 的额外体积，可以改用：
 

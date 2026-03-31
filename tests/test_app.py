@@ -54,6 +54,7 @@ def test_build_api_catalog_includes_bundle_and_catalog_endpoints() -> None:
     assert "/v1/audio/jobs/{id}/events" in paths
     assert "/v1/audio/jobs/{id}/bundle" in paths
     assert "/v1/audio/speech_bundle" in paths
+    assert "/v1/audio/speech_base64" in paths
     edge = next(provider for provider in catalog.providers if provider.id == "edge")
     assert edge.default_voice == "alloy"
     assert "multipart_bundle" in edge.supported_response_modes
@@ -150,3 +151,52 @@ def test_direct_synthesis_requires_provider_on_unscoped_route() -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "provider is required"
+
+
+def test_audio_speech_returns_raw_audio_bytes(monkeypatch) -> None:
+    async def fake_synthesize(request, on_progress=None):
+        return SynthesisResult(
+            format=AudioFormat.MP3,
+            audio_base64=base64.b64encode(b"raw-audio").decode("ascii"),
+            words=[],
+            timing_source=TimingSource.WORD_BOUNDARY,
+            provider=ProviderName.EDGE,
+            voice=request.voice or "alloy",
+            model=request.model,
+            estimated=False,
+        )
+
+    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+
+    client = TestClient(app)
+    response = client.post("/v1/audio/speech", json=_job_request_payload())
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/mpeg"
+    assert response.headers["x-audio-format"] == "mp3"
+    assert response.content == b"raw-audio"
+
+
+def test_audio_speech_base64_returns_compatibility_json(monkeypatch) -> None:
+    async def fake_synthesize(request, on_progress=None):
+        return SynthesisResult(
+            format=AudioFormat.MP3,
+            audio_base64=base64.b64encode(b"json-audio").decode("ascii"),
+            words=[],
+            timing_source=TimingSource.WORD_BOUNDARY,
+            provider=ProviderName.EDGE,
+            voice=request.voice or "alloy",
+            model=request.model,
+            estimated=False,
+        )
+
+    monkeypatch.setattr("storayboat_tts_gateway.app.providers", {"edge": type("StubProvider", (), {"synthesize": staticmethod(fake_synthesize)})(), "kokoro": object()})
+
+    client = TestClient(app)
+    response = client.post("/v1/audio/speech_base64", json=_job_request_payload())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "audio_base64": base64.b64encode(b"json-audio").decode("ascii"),
+        "format": "mp3",
+    }
